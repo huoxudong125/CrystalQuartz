@@ -1,41 +1,44 @@
 namespace CrystalQuartz.Web
 {
-    using System.Collections.Generic;
+    using System.Web;
+    using CrystalQuartz.Application;
     using CrystalQuartz.Core;
     using CrystalQuartz.Core.SchedulerProviders;
-    using CrystalQuartz.Web.FrontController;
-    using CrystalQuartz.WebFramework.Request;
+    using CrystalQuartz.WebFramework;
+    using CrystalQuartz.WebFramework.SystemWeb;
 
-    public class PagesHandler : FrontControllerHandler
+    public class PagesHandler : IHttpHandler
     {
-        private static readonly ISchedulerDataProvider SchedulerDataProvider;
-        private static readonly ISchedulerProvider SchedulerProvider;
-        private static readonly string CustomCssUrl;
+        private static readonly RunningApplication RunningApplication;
 
         static PagesHandler()
         {
-            CustomCssUrl = Configuration.ConfigUtils.CustomCssUrl;
-            SchedulerProvider = Configuration.ConfigUtils.SchedulerProvider;
-            SchedulerProvider.Init();
-            SchedulerDataProvider = new DefaultSchedulerDataProvider(SchedulerProvider);
+            var options = new CrystalQuartzOptions
+            {
+                CustomCssUrl = Configuration.ConfigUtils.CustomCssUrl
+            }; 
+
+            ISchedulerProvider schedulerProvider = Configuration.ConfigUtils.SchedulerProvider;
+            ISchedulerDataProvider schedulerDataProvider = new DefaultSchedulerDataProvider(schedulerProvider);
+
+            Application application = new CrystalQuartzPanelApplication(
+                schedulerProvider,
+                schedulerDataProvider,
+                options);
+
+            RunningApplication = application.Run();
         }
 
-        public PagesHandler() : base(GetProcessors())
+        public void ProcessRequest(HttpContext context)
         {
+            RunningApplication.Handle(
+                new SystemWebRequest(context), 
+                new SystemWebResponseRenderer(context));
         }
 
-        private static IList<IRequestHandler> GetProcessors()
+        public virtual bool IsReusable
         {
-            var handlers = new CrystalQuartzPanelApplication(
-                SchedulerProvider, 
-                SchedulerDataProvider,
-                CustomCssUrl).Config.Handlers;
-
-            var result = new List<IRequestHandler>();
-            result.Add(new FileRequestHandler(typeof(PagesHandler).Assembly, "CrystalQuartz.Web.Content."));
-            result.AddRange(handlers);
-            
-            return result;
+            get { return false; }
         }
     }
 }
